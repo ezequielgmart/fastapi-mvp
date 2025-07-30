@@ -1,0 +1,38 @@
+
+# ===============================================
+
+# Entornos virtuales
+# Siempre es buena práctica ignorar el directorio del entorno virtual
+# La convención más común es 'venv' o '.venv'
+venv/
+.venv/
+env/
+.env/
+
+# Byte-code compilado
+# Archivos .pyc, .pyo y .pyd que son generados automáticamente
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Archivos de distribución
+# Paquetes y artefactos generados
+dist/
+build/
+*.egg-info/
+.eggs/
+*.egg
+
+# Archivos de caché de pip
+pip-cache/
+
+# ===============================================
+# Archivos específicos de IDEs y Editores
+# ===============================================
+
+# PyCharm
+.idea/             # Directorio de configuración de PyCharm
+*.iml              # Archivos de módulo de PyCharm
+*.ipr              # Archivos de proyecto de PyCharm
+*.iws              # Archivos de espacio de trabajo de PyCharm

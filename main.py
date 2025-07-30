@@ -2,15 +2,16 @@ from fastapi import FastAPI, HTTPException
 
 app = FastAPI()
 
-items = []
+items = ["Apple","Mango","Pear"]
 
 @app.get("/")
 def root():
     return items  
 
 @app.get("/items")
-def create_item(item:str):
-    items.append(item)
+def create_item():
+    
+    
     return items
 
 @app.get("/items/{item_id}")
