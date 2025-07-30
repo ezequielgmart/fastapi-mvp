@@ -1,23 +1,21 @@
-from fastapi import FastAPI, HTTPException
+# src/main.py
+from fastapi import FastAPI
+from src.features.authors import route as authors_routes
 
-app = FastAPI()
+app = FastAPI(
+    title="Mi API de Autores",
+    description="Una API para gestionar autores y libros.",
+    version="1.0.0",
+)
 
-items = ["Apple","Mango","Pear"]
+app.include_router(
+    authors_routes.router,
+    prefix="/authors",
+    tags=["Authors"]
+)
 
 @app.get("/")
-def root():
-    return items  
+async def read_root():
+    return {"message": "¡Bienvenido a la API!"}
 
-@app.get("/items")
-def create_item():
-    
-    
-    return items
-
-@app.get("/items/{item_id}")
-def get_item(item_id: int) -> str:
-    if item_id < len(items):
-        return items[item_id]
-    else:
-        raise HTTPException(status_code=404, detail="Item not found")
-
+# Para ejecutar tu aplicación: uvicorn src.main:app --reload
