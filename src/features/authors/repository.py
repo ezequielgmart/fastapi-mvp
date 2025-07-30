@@ -3,7 +3,7 @@
 repo class interacts with the entity and provide the data to the service for the business logic
 """
 from typing import List
-from .entity import Author # Importa tu modelo Pydantic
+from ..models.author import Author
 
 class AuthorRepositor:
     def get_all(self) -> List[Author]: # ¡Importante: tipa el retorno con tu modelo Pydantic!

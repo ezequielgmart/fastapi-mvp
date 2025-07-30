@@ -2,7 +2,7 @@
 from fastapi import APIRouter
 from typing import List
 from .service import author_service # Importa la instancia de tu controlador
-from .entity import Author # Importa tu modelo Pydantic para response_model
+from ..models.author import Author
 
 router = APIRouter()
 

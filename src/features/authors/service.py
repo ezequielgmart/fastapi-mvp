@@ -7,7 +7,8 @@ this is agnostic of the way that it's called
 # src/domains/authors/controller.py
 from typing import List
 from .repository import author_repository # Importa la instancia de tu servicio
-from .entity import Author # Importa tu modelo Pydantic
+
+from ..models.author import Author
 
 class AuthorService:
     def get_all_authors(self) -> List[Author]:
