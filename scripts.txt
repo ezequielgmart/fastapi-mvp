@@ -1,0 +1,2 @@
+// start the development server
+uvicorn main:app --reload
