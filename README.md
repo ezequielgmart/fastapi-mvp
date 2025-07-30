@@ -1,9 +1,8 @@
 # fastapi-mvp
 
 ## Scripts
-`[start the server]`
-```
-bash
+*(start the server)*
 
-uvicorn main:app --reload
+```bash
+  uvicorn main:app --reload
 ```
