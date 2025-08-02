@@ -1,10 +1,9 @@
 from pydantic import BaseModel
 
-class Author(BaseModel):
+class genre(BaseModel):
+    book_id: str
     author_id: str
-    name: str
-    last_name: str
-    nationality: str
+    
 
     class ConfigDict:
         # Esto es útil si los datos provienen de un ORM o alguna otra fuente

@@ -1,2 +1,6 @@
 // start the development server
 uvicorn main:app --reload
+
+pytest C:\Users\jerem\Documents\py\api-py-mvp\fastapi-mvp\src\tests\authors\test_controller.py
+
+C:\Users\jerem\Documents\py\api-py-mvp\fastapi-mvp>ptw .
