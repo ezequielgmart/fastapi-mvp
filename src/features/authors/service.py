@@ -13,6 +13,12 @@ from ..models.author import Author
 class AuthorService:
     def get_all_authors(self) -> List[Author]:
         return author_repository.get_all()
+    
+    def get_by_id(self,id:str) -> Author:
+        return author_repository.get_by_id(id)
+    
+    def insert(self,author_obj:Author) -> Author:
+        return author_repository.insert(author_obj)
 
 # Instancia de tu controlador
 author_service = AuthorService()
