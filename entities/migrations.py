@@ -1,4 +1,4 @@
-from pygem.data import SingleGenericSchema
+from pygem.main import SingleGenericSchema
 from pygem.pydantic_models import Field
 
 

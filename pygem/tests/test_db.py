@@ -1,4 +1,4 @@
-from .imports import  DB
+from pygem.imports import  DB
 import asyncio
 
 ## db info
@@ -11,9 +11,14 @@ TEST_DB_PORT=5432
 CONFIG = {
     "user":TEST_DB_USER,
     "host":TEST_DB_HOST,
-    "name":TEST_DB_DATABASE,
+    "database":TEST_DB_DATABASE,
     "password":TEST_DB_PASSWORD,
 }
 
-db = DB()
+# TEST_DB_CONFIG = {
+#     "user":TEST_DB_USER,
+#     "host":TEST_DB_HOST,
+#     "database":TEST_DB_DATABASE,
+#     "password":TEST_DB_PASSWORD,
+# }
 

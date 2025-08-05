@@ -11,11 +11,21 @@ llamado "imports.db" donde se registren todos objetos instanciados para ser util
 # extraer la data de una bdd
 import asyncio
 import asyncpg
+from asyncpg.pool import Pool
 from pathlib import Path
 from .pydantic_models import Field
 from asyncpg.exceptions import PostgresError
 
 
+async def create_db_pool(config) -> Pool:
+    """Crea y retorna un pool de conexiones a la base de datos."""
+    pool = await asyncpg.create_pool(
+        min_size=1,     # Número mínimo de conexiones abiertas
+        max_size=10,    # Número máximo de conexiones
+        loop=None,
+        **config
+    )
+    return pool
 
 class SingleModelSchema:
 
@@ -35,17 +45,19 @@ r* extraer metadatos de una tabla en concreto *
 r* crear un objeto que represente la tabla * 
 r* guardar ese objeto en un archivo 
 r* mostrar la informacion. 
-tomar toda las tablas 
-la funcion debe de recibir tablas y generar todo el archivo
+r* tomar toda las tablas 
+r* la funcion debe de recibir tablas y generar todo el archivo
+optimizar a que sea un pool de conexiones en lugar de un conn
 
 """
+
 # manejar los metodos de la base de datos en pg y las configuracioens. Ideal para iniciar la connecion
 class DB: 
 
     async def start_connection(self, config:dict) -> object:
         
         # conectarse a la db
-        conn = await asyncpg.connect(user=config['user'], password=config['password'],database=config['name'], host=config['host'])
+        conn = await asyncpg.connect(user=config['user'], password=config['password'],database=config['database'], host=config['host'])
         
         return conn
     
@@ -57,31 +69,33 @@ class Conn(DB):
         self.get = self.start_connection(config)
 
         
-async def get_all_tables(conn:object):
+async def get_all_tables(pool:Pool) -> list[str]:
     try:
-     # 1. Extraer todas las tablas del esquema 'public'
-        query_tables = """
-            SELECT table_name
-            FROM information_schema.tables
-            WHERE table_schema = 'public' AND table_type = 'BASE TABLE';
-        """
-        tables = []
-        
-        result = await conn.fetch(query_tables)
+        # pedir prestada una conexion del pool, se devuelve automaticamente al salir 
+        async with pool.acquire() as conn: 
+            # 1. Extraer todas las tablas del esquema 'public'
+            query_tables = """
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_type = 'BASE TABLE';
+            """
+            tables = []
+            
+            result = await conn.fetch(query_tables)
 
-        for record in result:
+            for record in result:
 
-            tables.append(record['table_name'])
+                tables.append(record['table_name'])
 
-        
-        return tables
+            
+            return tables
         
     except asyncpg.exceptions.PostgresError as e:
 
         return f"Error connecting the db {e}"
 
 
-async def get_fields(table:str, conn:object) -> dict[str,str,Field]: 
+async def get_fields(table:str, pool:Pool) -> dict[str,str,Field]: 
     primary_key_name = ''
     query = """
         SELECT
@@ -98,33 +112,34 @@ async def get_fields(table:str, conn:object) -> dict[str,str,Field]:
         ORDER BY
             c.ordinal_position;
     """
-    columns = await conn.fetch(query, table)
-    fields = []
-    
-    for record in columns:
-        is_null = record['is_nullable'] != "NO"
-        primary_key = record['is_primary_key'] == "YES"
+    async with pool.acquire() as conn: 
+        columns = await conn.fetch(query, table)
+        fields = []
         
-        # --- Solución al UnboundLocalError ---
-        # Asigna un valor por defecto a data_type al principio del bucle.
-        data_type = record['data_type']
+        for record in columns:
+            is_null = record['is_nullable'] != "NO"
+            primary_key = record['is_primary_key'] == "YES"
+            
+            # --- Solución al UnboundLocalError ---
+            # Asigna un valor por defecto a data_type al principio del bucle.
+            data_type = record['data_type']
 
-        if primary_key:
-            primary_key_name = record['column_name']
-        
-        if record['data_type'] == 'character varying': 
-            data_type = "varchar"
-        
-        field = {
-            "is_primary_key": primary_key,
-            "name": record['column_name'],
-            "type": data_type,
-            "is_null": is_null
-        }
+            if primary_key:
+                primary_key_name = record['column_name']
+            
+            if record['data_type'] == 'character varying': 
+                data_type = "varchar"
+            
+            field = {
+                "is_primary_key": primary_key,
+                "name": record['column_name'],
+                "type": data_type,
+                "is_null": is_null
+            }
 
-        # Comprobación de duplicados mejorada
-        if not any(f.name == field["name"] for f in fields):
-            fields.append(Field(**field))
+            # Comprobación de duplicados mejorada
+            if not any(f.name == field["name"] for f in fields):
+                fields.append(Field(**field))
 
     result = {"table_name": table, "pk": primary_key_name, "fields": fields}
 
@@ -136,7 +151,7 @@ def create_all_migrations_file(all_tables_info: list) -> bool:
     try:
         path = Path("./entities/migrations.py")
         full_content = ""
-        header = f"""from pygem.data import SingleGenericSchema
+        header = f"""from pygem.main import SingleGenericSchema
 from pygem.pydantic_models import Field\n\n"""
         full_content = header
         
@@ -176,14 +191,14 @@ _{table}_gem = SingleGenericSchema(
 
 """
 
-async def main(conn:object):
+async def main(pool:Pool):
     try:
         # Extraer todas las tablas
-        db_tables = await get_all_tables(conn)
+        db_tables = await get_all_tables(pool)
         
         all_tables_info = []
         for table in db_tables:
-            table_info = await get_fields(table, conn)
+            table_info = await get_fields(table, pool)
             all_tables_info.append(table_info)
 
         # Crear el archivo con el contenido de todas las tablas
@@ -191,9 +206,7 @@ async def main(conn:object):
         
     except asyncpg.exceptions.PostgresError as e:
         return f"Error connecting the db {e}"
-    finally:
-        await conn.close()
-
+    
 def create_migration_file(table:dict) -> bool:
 
     try:
@@ -213,35 +226,6 @@ def create_migration_file(table:dict) -> bool:
         
 
     return file
-
-# # esto se puede poner por tabla
-# def migration_file_content(table: str, primary_key_name: str, fields: list) -> str:
-#     # Construye una lista de strings para los campos
-#     fields_string_list = [
-#         # Nota: El formato del f-string ha sido ajustado para coincidir con la salida esperada
-#         f"        Field(is_primary_key={field.is_primary_key}, name='{field.name}', type='{field.type}', is_null={field.is_null})"
-#         for field in fields
-#     ]
-#     formatted_fields = ",\n".join(fields_string_list)
-
-#     header = f"""from pygem.data import SingleGenericSchema
-# from pygem.pydantic_models import Field"""
-
-#     # Usa un solo f-string para todo el contenido
-     
-#     content = f"""
-#     _{table}_gem = SingleGenericSchema(
-#         table='{table}',
-#         primary_key='{primary_key_name}',
-#         fields=[
-#     {formatted_fields}
-#         ]
-#     )
-#     \n
-#     """
-
-#     file = header + content
-#     return file 
 
 def create_file(path:Path, content:str):
     
