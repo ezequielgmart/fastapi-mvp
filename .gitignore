@@ -24,6 +24,15 @@ build/
 .eggs/
 *.egg
 
+
+# dev // archivos que estan en para mi entorno de desarrollo
+# pygem/
+
+# 
+log.md  
+
+scripts.txt
+
 # Archivos de caché de pip
 pip-cache/
 
