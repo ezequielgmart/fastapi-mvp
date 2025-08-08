@@ -31,6 +31,7 @@ build/
 # 
 log.md  
 
+scripts.txt
 
 # Archivos de caché de pip
 pip-cache/

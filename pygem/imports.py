@@ -1,15 +1,9 @@
-"""
+# This file is for testing the MVP of extracting database information
+# and converting it into a manipulable object/class for the Schema class.
+# This object should be saved along with all other table schemas
+# in a common file called "imports.db" for all instantiated objects to be used.
 
-este archivo es solo para un test y es para el mvp de extraer la informacion de la base de datos
-y luego convetirla en un objeto/clase manipulable para la clase Schema
-
-este objeto manipulable debe de guardarse con todos los de las otras tablas en un archivo en comun 
-llamado "imports.db" donde se registren todos objetos instanciados para ser utilizados.
-
-"""
-
-# extraer la data de una bdd
-import asyncio
+# extract data from a db
 import asyncpg
 from asyncpg.pool import Pool
 from pathlib import Path
@@ -17,63 +11,17 @@ from .pydantic_models import Field
 from asyncpg.exceptions import PostgresError
 
 
-async def create_db_pool(config) -> Pool:
-    """Crea y retorna un pool de conexiones a la base de datos."""
-    pool = await asyncpg.create_pool(
-        min_size=1,     # Número mínimo de conexiones abiertas
-        max_size=10,    # Número máximo de conexiones
-        loop=None,
-        **config
-    )
-    return pool
-
-class SingleModelSchema:
-
-    def __init__(self, table_name:str, primary_key:str, fields:list):
-
-        self.table = table_name
-        self.primary_key = primary_key
-        self.fields = fields 
-
-
 """
-
-* responsabilidades
-
-r* conectarse a db *
-r* extraer metadatos de una tabla en concreto *
-r* crear un objeto que represente la tabla * 
-r* guardar ese objeto en un archivo 
-r* mostrar la informacion. 
-r* tomar toda las tablas 
-r* la funcion debe de recibir tablas y generar todo el archivo
-optimizar a que sea un pool de conexiones en lugar de un conn
-
+@function: Gets a list of all table names from the 'public' schema.
+@params: 
+    - pool: An asyncpg connection pool.
+@return: A list of strings with table names, or a string with an error message.
 """
-
-# manejar los metodos de la base de datos en pg y las configuracioens. Ideal para iniciar la connecion
-class DB: 
-
-    async def start_connection(self, config:dict) -> object:
-        
-        # conectarse a la db
-        conn = await asyncpg.connect(user=config['user'], password=config['password'],database=config['database'], host=config['host'])
-        
-        return conn
-    
-class Conn(DB): 
-
-    def __init__(self, config:dict):
-        super.__init__()
-
-        self.get = self.start_connection(config)
-
-        
 async def get_all_tables(pool:Pool) -> list[str]:
     try:
-        # pedir prestada una conexion del pool, se devuelve automaticamente al salir 
+        # Borrow a connection from the pool, it's automatically returned upon exiting the block
         async with pool.acquire() as conn: 
-            # 1. Extraer todas las tablas del esquema 'public'
+            # 1. Extract all tables from the 'public' schema
             query_tables = """
                 SELECT table_name
                 FROM information_schema.tables
@@ -84,18 +32,21 @@ async def get_all_tables(pool:Pool) -> list[str]:
             result = await conn.fetch(query_tables)
 
             for record in result:
-
                 tables.append(record['table_name'])
 
-            
             return tables
         
     except asyncpg.exceptions.PostgresError as e:
-
         return f"Error connecting the db {e}"
 
-
-async def get_fields(table:str, pool:Pool) -> dict[str,str,Field]: 
+"""
+@function: Gets a table's column information and converts it into a structured dictionary.
+@params: 
+    - table: The name of the table.
+    - pool: An asyncpg connection pool.
+@return: A dictionary containing the table's name, primary key, and a list of Field objects.
+"""
+async def get_fields(table:str, pool:Pool) -> dict[str, Any]:
     primary_key_name = ''
     query = """
         SELECT
@@ -120,8 +71,8 @@ async def get_fields(table:str, pool:Pool) -> dict[str,str,Field]:
             is_null = record['is_nullable'] != "NO"
             primary_key = record['is_primary_key'] == "YES"
             
-            # --- Solución al UnboundLocalError ---
-            # Asigna un valor por defecto a data_type al principio del bucle.
+            # --- Solution to UnboundLocalError ---
+            # Assign a default value to data_type at the beginning of the loop.
             data_type = record['data_type']
 
             if primary_key:
@@ -137,7 +88,7 @@ async def get_fields(table:str, pool:Pool) -> dict[str,str,Field]:
                 "is_null": is_null
             }
 
-            # Comprobación de duplicados mejorada
+            # Improved duplicate check
             if not any(f.name == field["name"] for f in fields):
                 fields.append(Field(**field))
 
@@ -145,8 +96,12 @@ async def get_fields(table:str, pool:Pool) -> dict[str,str,Field]:
 
     return result
 
-
-# Nueva función para crear un archivo que contiene todos los esquemas
+"""
+@function: Creates a file containing all table schemas in a standard format.
+@params: 
+    - all_tables_info: A list of dictionaries with table information.
+@return: True if the file was created successfully, False otherwise.
+"""
 def create_all_migrations_file(all_tables_info: list) -> bool:
     try:
         path = Path("./entities/migrations.py")
@@ -168,11 +123,17 @@ from pygem.pydantic_models import Field\n\n"""
         
         return True
     except Exception as e:
-        print(f"Ocurrió un error al crear el archivo de migraciones: {e}")
+        print(f"An error occurred while creating the migrations file: {e}")
         return False
 
-# Modificación en la función migration_file_content
-# Esta función ahora solo crea el bloque de código para una tabla
+"""
+@function: Creates the code block for a single table's schema.
+@params: 
+    - table: The name of the table.
+    - primary_key_name: The name of the primary key.
+    - fields: A list of Field objects.
+@return: A string with the formatted Python code for the table schema.
+"""
 def migration_file_content(table: str, primary_key_name: str, fields: list) -> str:
     fields_string_list = [
         f"        Field(is_primary_key={field.is_primary_key}, name='{field.name}', type='{field.type}', is_null={field.is_null})"
@@ -191,9 +152,15 @@ _{table}_gem = SingleGenericSchema(
 
 """
 
+"""
+@function: The main function to orchestrate the extraction and file creation process.
+@params:
+    - pool: An asyncpg connection pool.
+@return: A string with an error message if a PostgresError occurs.
+"""
 async def main(pool:Pool):
     try:
-        # Extraer todas las tablas
+        # Extract all tables
         db_tables = await get_all_tables(pool)
         
         all_tables_info = []
@@ -201,33 +168,42 @@ async def main(pool:Pool):
             table_info = await get_fields(table, pool)
             all_tables_info.append(table_info)
 
-        # Crear el archivo con el contenido de todas las tablas
+        # Create the file with all the tables' content
         create_all_migrations_file(all_tables_info)
         
     except asyncpg.exceptions.PostgresError as e:
         return f"Error connecting the db {e}"
-    
-def create_migration_file(table:dict) -> bool:
 
+"""
+@function: Creates a single migration file for a given table.
+@params:
+    - table: A dictionary with the table's information.
+@return: True if the file was created successfully, False otherwise.
+"""
+def create_migration_file(table:dict) -> bool:
     try:
-        # Crea una ruta relativa a la carpeta 'generador'
+        # Creates a path relative to the 'generator' folder
         path = Path("./entities/migrations.py")
 
         content = migration_file_content(table["table_name"], table["pk"], table["fields"])
 
-        file = create_file(path, content)
+        create_file(path, content)
+        return True
 
     except PermissionError:
-        print("Error: No tienes permisos para escribir en este directorio.")
+        print("Error: You don't have permission to write to this directory.")
         return False
     except OSError as e:
-        print(f"Ocurrió un error del sistema operativo: {e}")
+        print(f"An operating system error occurred: {e}")
         return False
         
-
-    return file
-
+"""
+@function: Creates a file at a given path with the specified content.
+@params:
+    - path: A Path object for the file location.
+    - content: A string with the content to write to the file.
+@return: None
+"""
 def create_file(path:Path, content:str):
-    
     with open(path, "w") as file:
         file.write(content)
